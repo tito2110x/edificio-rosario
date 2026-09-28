@@ -2,7 +2,7 @@ import urllib.request
 import json
 import base64
 import re
-from config import GEMINI_API_KEY, PRIMARY_MODEL, FALLBACK_MODELS
+from config import GEMINI_API_KEY, PRIMARY_MODEL, FALLBACK_MODELS, obtener_gemini_api_key
 from core.gemini_reader import optimizar_imagen
 
 def parsear_numero(val) -> float:
@@ -18,11 +18,12 @@ def parsear_numero(val) -> float:
         nums = re.findall(r"\d+\.?\d*", s)
         return float(nums[0]) if nums else 0.0
 
-def analizar_recibo_luz(image_bytes: bytes, mime_type: str = "image/jpeg", api_key: str = GEMINI_API_KEY) -> dict:
+def analizar_recibo_luz(image_bytes: bytes, mime_type: str = "image/jpeg", api_key: str = None) -> dict:
     """
     Analiza una foto del recibo de Luz del Sur.
     Extrae el total a pagar en soles, la energía a facturar (kWh) y el mes.
     """
+    api_key = api_key or obtener_gemini_api_key()
     if mime_type.startswith("image/"):
         opt_bytes, opt_mime = optimizar_imagen(image_bytes, max_dim=1800, quality=90)
     else:
@@ -77,11 +78,12 @@ def analizar_recibo_luz(image_bytes: bytes, mime_type: str = "image/jpeg", api_k
         "confianza": "error"
     }
 
-def analizar_recibo_agua(image_bytes: bytes, mime_type: str = "image/jpeg", api_key: str = GEMINI_API_KEY) -> dict:
+def analizar_recibo_agua(image_bytes: bytes, mime_type: str = "image/jpeg", api_key: str = None) -> dict:
     """
     Analiza una foto del recibo de Sedapal (agua).
     Extrae el total a pagar en soles, el mes facturado y el suministro.
     """
+    api_key = api_key or obtener_gemini_api_key()
     if mime_type.startswith("image/"):
         opt_bytes, opt_mime = optimizar_imagen(image_bytes, max_dim=1800, quality=90)
     else:

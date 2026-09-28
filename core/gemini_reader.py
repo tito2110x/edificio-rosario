@@ -6,7 +6,7 @@ import re
 import io
 from PIL import Image
 from concurrent.futures import ThreadPoolExecutor
-from config import GEMINI_API_KEY, PRIMARY_MODEL, FALLBACK_MODELS
+from config import GEMINI_API_KEY, PRIMARY_MODEL, FALLBACK_MODELS, obtener_gemini_api_key
 
 def optimizar_imagen(image_bytes: bytes, max_dim: int = 1600, quality: int = 85) -> tuple[bytes, str]:
     """Optimiza y redimensiona la imagen para enviar a la API de forma rápida."""
@@ -65,11 +65,12 @@ def invocar_gemini_vision(model_name: str, prompt: str, mime_type: str, b64_data
         candidate = resp_data["candidates"][0]["content"]["parts"][0]["text"]
         return json.loads(candidate)
 
-def analizar_foto_medidor(image_bytes: bytes, api_key: str = GEMINI_API_KEY) -> dict:
+def analizar_foto_medidor(image_bytes: bytes, api_key: str = None) -> dict:
     """
     Envía la foto a Gemini. Intenta primero con gemini-3.8-flash,
     y si falla o da 503/timeout, conmuta automáticamente a gemini-3.6-flash.
     """
+    api_key = api_key or obtener_gemini_api_key()
     opt_bytes, mime_type = optimizar_imagen(image_bytes)
     b64_data = base64.b64encode(opt_bytes).decode("utf-8")
 
@@ -115,8 +116,9 @@ def analizar_foto_medidor(image_bytes: bytes, api_key: str = GEMINI_API_KEY) -> 
         "descripcion": "No se pudo leer la imagen con los modelos de IA disponibles."
     }
 
-def procesar_lote_fotos(fotos_dict: dict[str, bytes], api_key: str = GEMINI_API_KEY, max_workers: int = 4) -> dict[str, dict]:
+def procesar_lote_fotos(fotos_dict: dict[str, bytes], api_key: str = None, max_workers: int = 4) -> dict[str, dict]:
     """Procesa un lote de fotos en paralelo y retorna un diccionario mapeado por nombre de archivo."""
+    api_key = api_key or obtener_gemini_api_key()
     resultados = {}
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futuros = {
