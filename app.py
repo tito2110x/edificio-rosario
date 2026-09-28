@@ -5,21 +5,20 @@ import os
 from datetime import datetime
 
 from config import (
-    GEMINI_API_KEY, PRIMARY_MODEL, DEFAULT_EXCEL_PATH,
+    obtener_gemini_api_key, PRIMARY_MODEL,
     DEPARTAMENTOS, DEFAULT_GASTOS_COMUNES
 )
 from core.gemini_reader import procesar_lote_fotos
 from core.receipt_reader import analizar_recibo_luz, analizar_recibo_agua
 from core.calculator import calcular_prorrateo_agua, calcular_resumen_general
 from core.database import obtener_lecturas_base, guardar_mes
-from core.excel_manager import agregar_nuevo_mes_excel
 
-# Configuración de página optimizada para móvil y escritorio
+# Configuración de página
 st.set_page_config(
     page_title="Rosario del Solar - Cobranza Mensual",
     page_icon="🏢",
     layout="wide",
-    initial_sidebar_state="collapsed"
+    initial_sidebar_state="expanded"
 )
 
 # Estilos CSS Mobile-First
@@ -47,21 +46,13 @@ st.markdown("""
         margin: 5px 0 0 0;
         font-size: 0.95rem;
     }
-    .card-resumen {
-        background-color: #ffffff;
-        border: 1px solid #e0e0e0;
-        border-radius: 10px;
-        padding: 14px;
-        margin-bottom: 12px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-    }
     .badge-total {
         background-color: #E8F5E9;
         color: #2E7D32;
-        padding: 4px 10px;
-        border-radius: 6px;
+        padding: 6px 12px;
+        border-radius: 8px;
         font-weight: bold;
-        font-size: 1.1rem;
+        font-size: 1.15rem;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -73,6 +64,22 @@ st.markdown("""
     <p>Cobranza mensual automatizada de Agua, Luz y Mantenimiento desde el celular</p>
 </div>
 """, unsafe_allow_html=True)
+
+# Gestión de API Key
+api_key_detectada = obtener_gemini_api_key()
+
+with st.sidebar:
+    st.subheader("⚙️ Configuración")
+    api_key_input = st.text_input(
+        "Gemini API Key",
+        value=api_key_detectada,
+        type="password",
+        help="Pega aquí tu API Key de Google AI Studio (100% gratuita)."
+    )
+    if not api_key_input:
+        st.warning("⚠️ Ingresa tu API Key para habilitar el reconocimiento automático con IA.")
+    else:
+        st.success("✅ API Key conectada")
 
 # Cargar historial base
 nombre_mes_ant, lecturas_agua_ant, lecturas_luz_ant = obtener_lecturas_base()
@@ -105,14 +112,17 @@ with col_r1:
     )
     if foto_recibo_agua:
         if st.button("🤖 Leer Recibo de Agua con IA", key="btn_leer_agua"):
-            with st.spinner("Leyendo recibo de Sedapal..."):
-                m_type = foto_recibo_agua.type or "image/jpeg"
-                res_a = analizar_recibo_agua(foto_recibo_agua.getvalue(), mime_type=m_type)
-                if res_a.get("total_a_pagar", 0) > 0:
-                    st.session_state.recibo_agua_monto = res_a["total_a_pagar"]
-                    st.success(f"✅ Sedapal detectado: S/ {res_a['total_a_pagar']:.2f}")
-                else:
-                    st.warning("No se pudo leer el monto automáticamente. Ingresa el valor manual abajo.")
+            if not api_key_input:
+                st.error("Por favor, ingresa tu Gemini API Key en la barra lateral.")
+            else:
+                with st.spinner("Leyendo recibo de Sedapal con IA..."):
+                    m_type = foto_recibo_agua.type or "image/jpeg"
+                    res_a = analizar_recibo_agua(foto_recibo_agua.getvalue(), mime_type=m_type, api_key=api_key_input)
+                    if res_a.get("total_a_pagar", 0) > 0:
+                        st.session_state.recibo_agua_monto = res_a["total_a_pagar"]
+                        st.success(f"✅ Sedapal detectado: S/ {res_a['total_a_pagar']:.2f}")
+                    else:
+                        st.warning("No se pudo leer el monto automáticamente. Ingresa el valor manual abajo.")
 
 with col_r2:
     foto_recibo_luz = st.file_uploader(
@@ -122,15 +132,18 @@ with col_r2:
     )
     if foto_recibo_luz:
         if st.button("🤖 Leer Recibo de Luz con IA", key="btn_leer_luz"):
-            with st.spinner("Leyendo recibo de Luz del Sur..."):
-                m_type = foto_recibo_luz.type or "image/jpeg"
-                res_l = analizar_recibo_luz(foto_recibo_luz.getvalue(), mime_type=m_type)
-                if res_l.get("total_a_pagar", 0) > 0:
-                    st.session_state.recibo_luz_monto = res_l["total_a_pagar"]
-                    st.session_state.recibo_luz_kwh = res_l["energia_facturada_kwh"]
-                    st.success(f"✅ Luz detectada: S/ {res_l['total_a_pagar']:.2f} ({res_l['energia_facturada_kwh']:.1f} kWh)")
-                else:
-                    st.warning("No se pudo leer el monto automáticamente. Ingresa el valor manual abajo.")
+            if not api_key_input:
+                st.error("Por favor, ingresa tu Gemini API Key en la barra lateral.")
+            else:
+                with st.spinner("Leyendo recibo de Luz del Sur con IA..."):
+                    m_type = foto_recibo_luz.type or "image/jpeg"
+                    res_l = analizar_recibo_luz(foto_recibo_luz.getvalue(), mime_type=m_type, api_key=api_key_input)
+                    if res_l.get("total_a_pagar", 0) > 0:
+                        st.session_state.recibo_luz_monto = res_l["total_a_pagar"]
+                        st.session_state.recibo_luz_kwh = res_l["energia_facturada_kwh"]
+                        st.success(f"✅ Luz detectada: S/ {res_l['total_a_pagar']:.2f} ({res_l['energia_facturada_kwh']:.1f} kWh)")
+                    else:
+                        st.warning("No se pudo leer el monto automáticamente. Ingresa el valor manual abajo.")
 
 # Campos con los montos detectados (editables)
 st.write("**Montos a facturar este mes:**")
@@ -157,26 +170,29 @@ fotos_medidores_files = st.file_uploader(
 
 if fotos_medidores_files:
     st.info(f"📁 {len(fotos_medidores_files)} fotos seleccionadas listas para escanear.")
-    if st.button("🚀 Escanear Medidores con IA (Gemini 3.8 Flash)", type="primary", use_container_width=True):
-        f_dict = {f.name: f.getvalue() for f in fotos_medidores_files}
-        with st.spinner("La IA está leyendo los stickers y números de los medidores..."):
-            res_lote = procesar_lote_fotos(f_dict)
-            
-            dptos_actualizados = []
-            for name, r in res_lote.items():
-                dpto = r.get("departamento")
-                tipo = r.get("tipo", "agua")
-                lectura = float(r.get("lectura_entera", 0))
-                if dpto:
-                    st.session_state.fotos_medidores[dpto] = f_dict[name]
-                    if dpto in ["601", "602"] and tipo == "luz":
-                        st.session_state.lecturas_luz_detectadas[dpto] = float(r.get("lectura_decimal", lectura))
-                        dptos_actualizados.append(f"Luz {dpto}")
-                    else:
-                        st.session_state.lecturas_agua_detectadas[dpto] = lectura
-                        dptos_actualizados.append(f"Agua {dpto}")
+    if st.button("🚀 Escanear Medidores con IA (Gemini)", type="primary", use_container_width=True):
+        if not api_key_input:
+            st.error("Por favor, ingresa tu Gemini API Key en la barra lateral.")
+        else:
+            f_dict = {f.name: f.getvalue() for f in fotos_medidores_files}
+            with st.spinner("La IA está leyendo los stickers y números de los medidores..."):
+                res_lote = procesar_lote_fotos(f_dict, api_key=api_key_input)
+                
+                dptos_actualizados = []
+                for name, r in res_lote.items():
+                    dpto = r.get("departamento")
+                    tipo = r.get("tipo", "agua")
+                    lectura = float(r.get("lectura_entera", 0))
+                    if dpto:
+                        st.session_state.fotos_medidores[dpto] = f_dict[name]
+                        if dpto in ["601", "602"] and tipo == "luz":
+                            st.session_state.lecturas_luz_detectadas[dpto] = float(r.get("lectura_decimal", lectura))
+                            dptos_actualizados.append(f"Luz {dpto}")
+                        else:
+                            st.session_state.lecturas_agua_detectadas[dpto] = lectura
+                            dptos_actualizados.append(f"Agua {dpto}")
 
-            st.success(f"✅ Se detectaron con éxito: {', '.join(dptos_actualizados)}")
+                st.success(f"✅ Se detectaron con éxito: {', '.join(dptos_actualizados)}")
 
 st.divider()
 
@@ -218,8 +234,6 @@ col_m2.metric("⚡ Luz del Sur", f"S/ {monto_luz_input:.2f}", f"Energía: {kwh_l
 col_m3.metric("🏢 Luz Áreas Comunes", f"S/ {soles_luz_comun:.2f}", f"{kwh_comun:.1f} kWh")
 
 # Lista de cobranza departamento por departamento
-mes_actual_str = datetime.now().strftime("%B %Y").capitalize()
-
 for item in resumen_cobranza:
     dpto = item["dpto"]
     nombre = item["nombre"]
@@ -256,7 +270,7 @@ for item in resumen_cobranza:
 st.divider()
 
 # --- PASO 4: GUARDAR Y DESCARGAR EXCEL ---
-st.subheader("4. 💾 Guardar Mes y Descargar Excel")
+st.subheader("4. 💾 Guardar Mes y Descargar Resumen")
 
 col_g1, col_g2 = st.columns(2)
 
@@ -276,12 +290,13 @@ with col_g1:
         st.success(f"✅ ¡Guardado con éxito! El próximo mes las lecturas anteriores se cargarán automáticamente.")
 
 with col_g2:
-    if os.path.exists(DEFAULT_EXCEL_PATH):
-        with open(DEFAULT_EXCEL_PATH, "rb") as f_excel:
-            st.download_button(
-                "📥 Descargar Archivo Excel Oficial (.xlsx)",
-                data=f_excel.read(),
-                file_name=f"CONSUMO_AGUA_ROSARIO_DEL_SOLAR_{datetime.now().strftime('%Y_%m')}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True
-            )
+    # Generar tabla resumen en CSV / Excel descargable
+    df_resumen_export = pd.DataFrame(resumen_cobranza)
+    csv_bytes = df_resumen_export.to_csv(index=False).encode("utf-8")
+    st.download_button(
+        "📥 Descargar Resumen de Cobranza (CSV)",
+        data=csv_bytes,
+        file_name=f"COBRANZA_ROSARIO_{datetime.now().strftime('%Y_%m')}.csv",
+        mime="text/csv",
+        use_container_width=True
+    )

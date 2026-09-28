@@ -1,6 +1,18 @@
 import os
 
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "AQ.Ab8RN6JyRyJFw6BLRIYIPW0fLZn_2DLLDYGpsSt7WkER9J0S2g")
+def obtener_gemini_api_key():
+    """Obtiene la API key de Streamlit Secrets o variables de entorno de forma segura."""
+    # 1. Intentar desde st.secrets (Streamlit Cloud)
+    try:
+        import streamlit as st
+        if hasattr(st, "secrets") and "GEMINI_API_KEY" in st.secrets:
+            return st.secrets["GEMINI_API_KEY"]
+    except Exception:
+        pass
+    # 2. Intentar desde variable de entorno
+    return os.environ.get("GEMINI_API_KEY", "")
+
+GEMINI_API_KEY = obtener_gemini_api_key()
 
 # Modelo principal preferido y fallback automático en caso de timeout o 503
 PRIMARY_MODEL = "gemini-3.8-flash"
